@@ -1,0 +1,48 @@
+{
+  "name": "claude-revert",
+  "version": "1.0.0",
+  "description": "A CLI tool with UI for reverting Claude Code changes",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-revert": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "watch": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "claude",
+    "revert",
+    "undo",
+    "cli",
+    "ui"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "express": "^4.18.2",
+    "open": "^9.1.0",
+    "ws": "^8.16.0",
+    "chalk": "^4.1.2",
+    "diff": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/ws": "^8.5.10",
+    "@types/diff": "^5.0.9",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  },
+  "files": [
+    "dist",
+    "public"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
