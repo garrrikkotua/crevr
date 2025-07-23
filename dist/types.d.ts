@@ -35,6 +35,8 @@ export interface ParsedChange {
     diff?: string;
     oldContent?: string;
     newContent?: string;
+    oldString?: string;
+    newString?: string;
     canRevert: boolean;
 }
 //# sourceMappingURL=types.d.ts.map

@@ -2,10 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as diff from 'diff';
 import { FileChange, ParsedChange } from './types.js';
+import { RevertTracker } from './revert-tracker.js';
 
 export class ChangeTracker {
   private fileSnapshots: Map<string, string[]> = new Map();
   private originalChanges: Map<string, FileChange> = new Map();
+  private revertTracker: RevertTracker;
+
+  constructor() {
+    this.revertTracker = new RevertTracker();
+  }
+
+  async init(): Promise<void> {
+    await this.revertTracker.init();
+  }
 
   async processChanges(changes: FileChange[]): Promise<ParsedChange[]> {
     const parsedChanges: ParsedChange[] = [];
@@ -26,7 +36,12 @@ export class ChangeTracker {
     }
 
     console.log(`Final parsed changes: ${parsedChanges.length}`);
-    return parsedChanges;
+    
+    // Filter out reverted changes
+    const activeChanges = await this.revertTracker.filterRevertedChanges(parsedChanges);
+    console.log(`Active changes after filtering: ${activeChanges.length}`);
+    
+    return activeChanges;
   }
 
   private async parseChange(change: FileChange): Promise<ParsedChange | null> {
@@ -96,7 +111,7 @@ export class ChangeTracker {
         'Current'
       );
 
-      return {
+      const result: ParsedChange = {
         id: change.id,
         timestamp: change.timestamp,
         type: change.type,
@@ -106,6 +121,14 @@ export class ChangeTracker {
         newContent,
         canRevert
       };
+      
+      // Add oldString/newString for edit changes
+      if (type === 'edit' && change.changes && change.changes.length > 0) {
+        result.oldString = change.changes[0].oldString;
+        result.newString = change.changes[0].newString;
+      }
+      
+      return result;
     } catch (error) {
       console.error(`Error processing change for ${filePath}:`, error);
       return null;
@@ -120,6 +143,14 @@ export class ChangeTracker {
     }
   }
 
+
+  private updateSnapshot(filePath: string, content: string): void {
+    if (!this.fileSnapshots.has(filePath)) {
+      this.fileSnapshots.set(filePath, []);
+    }
+    this.fileSnapshots.get(filePath)!.push(content);
+  }
+
   private applyEdits(content: string, edits: Array<{ oldString: string; newString: string; replaceAll?: boolean }>): string {
     let result = content;
 
@@ -132,13 +163,6 @@ export class ChangeTracker {
     }
 
     return result;
-  }
-
-  private updateSnapshot(filePath: string, content: string): void {
-    if (!this.fileSnapshots.has(filePath)) {
-      this.fileSnapshots.set(filePath, []);
-    }
-    this.fileSnapshots.get(filePath)!.push(content);
   }
 
   private findOriginalChange(id: string): FileChange | null {
@@ -178,14 +202,40 @@ export class ChangeTracker {
         }
         
         let reversedContent = currentContent;
+        console.log('Reverting edit change:', {
+          filePath,
+          changeId: change.id,
+          originalChangeCount: originalChange.changes.length,
+          currentContentLength: currentContent.length
+        });
+        
         // Apply changes in reverse order
         for (const edit of originalChange.changes.reverse()) {
+          console.log('Applying reverse edit:', {
+            oldString: edit.oldString.substring(0, 50) + (edit.oldString.length > 50 ? '...' : ''),
+            newString: edit.newString.substring(0, 50) + (edit.newString.length > 50 ? '...' : ''),
+            replaceAll: edit.replaceAll,
+            contentContainsNewString: reversedContent.includes(edit.newString)
+          });
+          
           if (edit.replaceAll) {
+            const beforeLength = reversedContent.length;
             reversedContent = reversedContent.split(edit.newString).join(edit.oldString);
+            console.log('Replace all result:', { beforeLength, afterLength: reversedContent.length });
           } else {
-            reversedContent = reversedContent.replace(edit.newString, edit.oldString);
+            const beforeLength = reversedContent.length;
+            const newContent = reversedContent.replace(edit.newString, edit.oldString);
+            if (newContent === reversedContent) {
+              console.warn('String replacement failed - newString not found in content');
+              console.warn('Looking for:', JSON.stringify(edit.newString));
+              console.warn('In content:', JSON.stringify(reversedContent.substring(0, 200)));
+            }
+            reversedContent = newContent;
+            console.log('Replace result:', { beforeLength, afterLength: reversedContent.length });
           }
         }
+        
+        console.log('Reversed content length:', reversedContent.length);
         
         await fs.promises.writeFile(filePath, reversedContent);
         break;
@@ -195,5 +245,9 @@ export class ChangeTracker {
         await fs.promises.writeFile(filePath, oldContent || '');
         break;
     }
+
+    // Mark the change as reverted
+    await this.revertTracker.markAsReverted(change.id);
+    console.log(`Change ${change.id} marked as reverted`);
   }
 }

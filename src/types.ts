@@ -37,5 +37,7 @@ export interface ParsedChange {
   diff?: string;
   oldContent?: string;
   newContent?: string;
+  oldString?: string;  // For edit changes
+  newString?: string;  // For edit changes
   canRevert: boolean;
 }

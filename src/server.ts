@@ -63,6 +63,33 @@ export class RevertServer {
         res.status(404).json({ error: 'File not found' });
       }
     });
+
+    // API endpoint to check file existence
+    this.app.get('/api/file-exists', async (req, res) => {
+      try {
+        const filePath = req.query.path as string;
+        if (!filePath) {
+          return res.status(400).json({ error: 'File path is required' });
+        }
+
+        // Security check: ensure file is within current working directory
+        const absolutePath = path.resolve(filePath);
+        const cwd = process.cwd();
+        if (!absolutePath.startsWith(cwd)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const fs = await import('fs');
+        try {
+          await fs.promises.access(absolutePath);
+          res.json({ exists: true });
+        } catch {
+          res.json({ exists: false });
+        }
+      } catch (error: any) {
+        res.status(500).json({ error: 'Failed to check file existence' });
+      }
+    });
   }
 
   private setupWebSocket() {
@@ -153,6 +180,9 @@ export class RevertServer {
   }
 
   async start() {
+    // Initialize the change tracker
+    await this.tracker.init();
+    
     return new Promise((resolve) => {
       this.server.listen(this.port, () => {
         console.log(`Claude Revert server running on http://localhost:${this.port}`);

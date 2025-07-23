@@ -1,9 +1,14 @@
 import * as fs from 'fs';
 import * as diff from 'diff';
+import { RevertTracker } from './revert-tracker.js';
 export class ChangeTracker {
     constructor() {
         this.fileSnapshots = new Map();
         this.originalChanges = new Map();
+        this.revertTracker = new RevertTracker();
+    }
+    async init() {
+        await this.revertTracker.init();
     }
     async processChanges(changes) {
         const parsedChanges = [];
@@ -22,7 +27,10 @@ export class ChangeTracker {
             }
         }
         console.log(`Final parsed changes: ${parsedChanges.length}`);
-        return parsedChanges;
+        // Filter out reverted changes
+        const activeChanges = await this.revertTracker.filterRevertedChanges(parsedChanges);
+        console.log(`Active changes after filtering: ${activeChanges.length}`);
+        return activeChanges;
     }
     async parseChange(change) {
         const { filePath, type } = change;
@@ -75,7 +83,7 @@ export class ChangeTracker {
             }
             // Generate diff
             const diffResult = diff.createPatch(filePath, oldContent, newContent, 'Previous', 'Current');
-            return {
+            const result = {
                 id: change.id,
                 timestamp: change.timestamp,
                 type: change.type,
@@ -85,6 +93,12 @@ export class ChangeTracker {
                 newContent,
                 canRevert
             };
+            // Add oldString/newString for edit changes
+            if (type === 'edit' && change.changes && change.changes.length > 0) {
+                result.oldString = change.changes[0].oldString;
+                result.newString = change.changes[0].newString;
+            }
+            return result;
         }
         catch (error) {
             console.error(`Error processing change for ${filePath}:`, error);
@@ -99,6 +113,12 @@ export class ChangeTracker {
             return null;
         }
     }
+    updateSnapshot(filePath, content) {
+        if (!this.fileSnapshots.has(filePath)) {
+            this.fileSnapshots.set(filePath, []);
+        }
+        this.fileSnapshots.get(filePath).push(content);
+    }
     applyEdits(content, edits) {
         let result = content;
         for (const edit of edits) {
@@ -110,12 +130,6 @@ export class ChangeTracker {
             }
         }
         return result;
-    }
-    updateSnapshot(filePath, content) {
-        if (!this.fileSnapshots.has(filePath)) {
-            this.fileSnapshots.set(filePath, []);
-        }
-        this.fileSnapshots.get(filePath).push(content);
     }
     findOriginalChange(id) {
         return this.originalChanges.get(id) || null;
@@ -147,15 +161,38 @@ export class ChangeTracker {
                     throw new Error('Cannot find original change details for reverting');
                 }
                 let reversedContent = currentContent;
+                console.log('Reverting edit change:', {
+                    filePath,
+                    changeId: change.id,
+                    originalChangeCount: originalChange.changes.length,
+                    currentContentLength: currentContent.length
+                });
                 // Apply changes in reverse order
                 for (const edit of originalChange.changes.reverse()) {
+                    console.log('Applying reverse edit:', {
+                        oldString: edit.oldString.substring(0, 50) + (edit.oldString.length > 50 ? '...' : ''),
+                        newString: edit.newString.substring(0, 50) + (edit.newString.length > 50 ? '...' : ''),
+                        replaceAll: edit.replaceAll,
+                        contentContainsNewString: reversedContent.includes(edit.newString)
+                    });
                     if (edit.replaceAll) {
+                        const beforeLength = reversedContent.length;
                         reversedContent = reversedContent.split(edit.newString).join(edit.oldString);
+                        console.log('Replace all result:', { beforeLength, afterLength: reversedContent.length });
                     }
                     else {
-                        reversedContent = reversedContent.replace(edit.newString, edit.oldString);
+                        const beforeLength = reversedContent.length;
+                        const newContent = reversedContent.replace(edit.newString, edit.oldString);
+                        if (newContent === reversedContent) {
+                            console.warn('String replacement failed - newString not found in content');
+                            console.warn('Looking for:', JSON.stringify(edit.newString));
+                            console.warn('In content:', JSON.stringify(reversedContent.substring(0, 200)));
+                        }
+                        reversedContent = newContent;
+                        console.log('Replace result:', { beforeLength, afterLength: reversedContent.length });
                     }
                 }
+                console.log('Reversed content length:', reversedContent.length);
                 await fs.promises.writeFile(filePath, reversedContent);
                 break;
             case 'write':
@@ -163,6 +200,9 @@ export class ChangeTracker {
                 await fs.promises.writeFile(filePath, oldContent || '');
                 break;
         }
+        // Mark the change as reverted
+        await this.revertTracker.markAsReverted(change.id);
+        console.log(`Change ${change.id} marked as reverted`);
     }
 }
 //# sourceMappingURL=change-tracker.js.map

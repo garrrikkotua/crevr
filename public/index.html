@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Revert - File Changes</title>
+    <title>Crev - Claude Code Changes</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -186,7 +186,7 @@
     <div x-show="!loading" x-cloak class="h-screen flex flex-col">
         <!-- Header -->
         <header class="bg-slate-800 border-b border-slate-700 px-6 py-4">
-            <h1 class="text-2xl font-semibold">Claude Revert</h1>
+            <h1 class="text-2xl font-semibold">🔄 Crev</h1>
             <p class="text-sm text-slate-400 mt-1">Review and revert file changes</p>
         </header>
         
@@ -219,8 +219,11 @@
                                 <template x-for="(changes, filename) in node.files" :key="filename">
                                     <div @click="selectFile(path + '/' + filename)" 
                                          class="cursor-pointer hover:bg-slate-700 rounded px-3 py-2 mb-1 transition-colors flex items-center justify-between"
-                                         :class="{ 'bg-blue-900/30 border-l-2 border-blue-500': selectedFile === path + '/' + filename }">
-                                        <span class="file-icon text-sm" x-text="filename"></span>
+                                         :class="{ 'bg-blue-900/30 border-l-2 border-blue-500': selectedFile === path + '/' + filename, 'opacity-60': !changes[0].fileExists }">
+                                        <div class="flex items-center">
+                                            <span class="file-icon text-sm" x-text="filename"></span>
+                                            <span x-show="!changes[0].fileExists" class="text-xs text-red-400 ml-2">(deleted)</span>
+                                        </div>
                                         <span class="text-xs px-2 py-1 rounded-full"
                                               :class="getChangeTypeClass(changes[0].type)"
                                               x-text="changes[0].type"></span>
@@ -244,14 +247,35 @@
                                 <span x-text="'Last modified: ' + formatDate(getSelectedFileChanges()[0]?.timestamp)"></span>
                             </div>
                         </div>
-                        <button @click="revertAllFileChanges()" 
-                                class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors">
-                            Revert All Changes
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-slate-500">
+                                <span class="font-semibold" x-text="getTotalChangedLines()"></span> lines affected
+                            </span>
+                            <button @click="revertAllFileChanges()" 
+                                    class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition-colors">
+                                Revert All Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- View Mode Tabs -->
+                <div x-show="selectedFile" class="bg-slate-800 border-b border-slate-700 px-6 py-2">
+                    <div class="flex gap-4">
+                        <button @click="viewMode = 'diff'" 
+                                :class="viewMode === 'diff' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400'"
+                                class="pb-2 px-1 font-medium text-sm hover:text-slate-200 transition-colors">
+                            Diff View
+                        </button>
+                        <button @click="viewMode = 'inline'" 
+                                :class="viewMode === 'inline' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400'"
+                                class="pb-2 px-1 font-medium text-sm hover:text-slate-200 transition-colors">
+                            Inline View
                         </button>
                     </div>
                 </div>
                 
-                <!-- File Content with Inline Changes -->
+                <!-- File Content -->
                 <div x-show="selectedFile" class="flex-1 overflow-y-auto">
                     <div class="font-mono text-sm" x-html="fileViewContent"></div>
                 </div>
@@ -287,10 +311,18 @@
                 statusMessage: '',
                 statusType: 'success',
                 fileViewContent: '',
+                viewMode: 'diff', // 'diff' or 'inline'
                 
                 init() {
                     window.claudeRevertInstance = this;
                     this.connectWebSocket();
+                    
+                    // Watch for view mode changes
+                    this.$watch('viewMode', () => {
+                        if (this.selectedFile) {
+                            this.loadFileContent();
+                        }
+                    });
                 },
                 
                 connectWebSocket() {
@@ -328,9 +360,9 @@
                     };
                 },
                 
-                handleChanges(changes) {
+                async handleChanges(changes) {
                     this.changes = changes;
-                    this.buildFileTree();
+                    await this.buildFileTree();
                     this.loading = false;
                     
                     // Auto-expand all folders initially
@@ -339,10 +371,10 @@
                     });
                 },
                 
-                buildFileTree() {
+                async buildFileTree() {
                     this.fileTree = {};
                     
-                    this.changes.forEach(change => {
+                    for (const change of this.changes) {
                         const parts = change.filePath.split('/');
                         const filename = parts.pop();
                         const folderPath = parts.join('/') || '/';
@@ -355,8 +387,22 @@
                             this.fileTree[folderPath].files[filename] = [];
                         }
                         
+                        // Check if file exists
+                        change.fileExists = await this.checkFileExists(change.filePath);
+                        
                         this.fileTree[folderPath].files[filename].push(change);
-                    });
+                    }
+                },
+                
+                async checkFileExists(filePath) {
+                    try {
+                        const response = await fetch(`/api/file-exists?path=${encodeURIComponent(filePath)}`);
+                        const data = await response.json();
+                        return data.exists;
+                    } catch (error) {
+                        console.warn('Error checking file existence:', error);
+                        return true; // Assume exists if we can't check
+                    }
                 },
                 
                 toggleFolder(path) {
@@ -387,6 +433,185 @@
                 formatDate(timestamp) {
                     if (!timestamp) return '';
                     return new Date(timestamp).toLocaleString();
+                },
+                
+                renderChangePreview() {
+                    const changes = this.getSelectedFileChanges();
+                    if (changes.length === 0) return '<div class="p-4 text-slate-400">No changes to display</div>';
+                    
+                    let html = '<div class="p-4 space-y-6">';
+                    
+                    // Show each change with before/after view
+                    changes.forEach((change, index) => {
+                        html += this.renderSingleChange(change, index);
+                    });
+                    
+                    html += '</div>';
+                    return html;
+                },
+                
+                renderSingleChange(change, index) {
+                    let html = `
+                        <div class="bg-slate-800 rounded-lg overflow-hidden">
+                            <div class="px-4 py-3 bg-slate-700 flex items-center justify-between">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-200">
+                                        <span class="mr-1">${this.getChangeIcon(change.type)}</span>
+                                        Change #${index + 1}: ${this.formatChangeType(change.type)}
+                                    </span>
+                                    <span class="text-xs text-slate-400 ml-3">
+                                        ${this.formatDate(change.timestamp)}
+                                    </span>
+                                </div>
+                                <button onclick="window.claudeRevertInstance.revertChange('${change.id}')" 
+                                        class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs font-medium transition-colors">
+                                    Revert This Change
+                                </button>
+                            </div>
+                    `;
+                    
+                    if (change.type === 'edit' && change.oldString && change.newString) {
+                        // Show before/after for edits with ccundo-style display
+                        html += `
+                            <div class="p-4">
+                                <div class="text-xs font-semibold text-slate-400 mb-3">
+                                    <span class="text-yellow-400">⚠️</span> String replacement that will be reversed:
+                                </div>
+                                <div class="bg-slate-900 rounded-lg p-4 font-mono text-sm">
+                                    <div class="mb-3">
+                                        <span class="text-red-400">-</span> <span class="text-red-300">"${this.escapeHtml(change.newString)}"</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-green-400">+</span> <span class="text-green-300">"${this.escapeHtml(change.oldString)}"</span>
+                                    </div>
+                                </div>
+                                ${change.diff ? `
+                                    <div class="mt-4 text-xs text-slate-400">
+                                        <details class="cursor-pointer">
+                                            <summary class="hover:text-slate-300">View full diff context</summary>
+                                            <div class="mt-2">${this.renderDiffContent(change.diff)}</div>
+                                        </details>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    } else if (change.diff) {
+                        // Show unified diff
+                        html += '<div class="p-4">' + this.renderDiffContent(change.diff) + '</div>';
+                    } else if (change.type === 'create') {
+                        html += '<div class="p-4 text-green-400">➕ New file was created</div>';
+                    } else if (change.type === 'delete') {
+                        html += '<div class="p-4 text-red-400">🗑️ File was deleted</div>';
+                    }
+                    
+                    html += '</div>';
+                    return html;
+                },
+                
+                renderUnifiedDiff() {
+                    const changes = this.getSelectedFileChanges();
+                    if (changes.length === 0) return '<div class="p-4 text-slate-400">No changes to display</div>';
+                    
+                    let html = '<div class="p-4">';
+                    
+                    // Process each change
+                    changes.forEach((change, index) => {
+                        // Change header
+                        html += `
+                            <div class="mb-6 bg-slate-800 rounded-lg overflow-hidden">
+                                <div class="px-4 py-3 bg-slate-700 flex items-center justify-between">
+                                    <div>
+                                        <span class="text-sm font-medium text-slate-200">
+                                            ${this.formatChangeType(change.type)}
+                                        </span>
+                                        <span class="text-xs text-slate-400 ml-3">
+                                            ${this.formatDate(change.timestamp)}
+                                        </span>
+                                    </div>
+                                    <button onclick="window.claudeRevertInstance.revertChange('${change.id}')" 
+                                            class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs font-medium transition-colors">
+                                        Revert
+                                    </button>
+                                </div>
+                                <div class="p-4 overflow-x-auto">
+                        `;
+                        
+                        if (change.diff) {
+                            html += this.renderDiffContent(change.diff);
+                        } else if (change.type === 'create') {
+                            html += '<div class="text-green-400">+ File created</div>';
+                        } else if (change.type === 'delete') {
+                            html += '<div class="text-red-400">- File deleted</div>';
+                        }
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    return html;
+                },
+                
+                renderDiffContent(diff) {
+                    const lines = diff.split('\n');
+                    let html = '<div class="font-mono text-sm">';
+                    let lineNumber = { old: 0, new: 0 };
+                    let inHunk = false;
+                    
+                    lines.forEach((line, index) => {
+                        if (line.startsWith('@@')) {
+                            // Parse hunk header
+                            const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
+                            if (match) {
+                                lineNumber.old = parseInt(match[1]) - 1;
+                                lineNumber.new = parseInt(match[2]) - 1;
+                                inHunk = true;
+                            }
+                            html += `<div class="text-blue-400 text-xs mt-4 mb-2 opacity-70">${this.escapeHtml(line)}</div>`;
+                        } else if (line.startsWith('+++') || line.startsWith('---')) {
+                            // Skip file headers in unified view
+                        } else if (inHunk) {
+                            if (line.startsWith('+')) {
+                                lineNumber.new++;
+                                const content = line.substring(1);
+                                html += `
+                                    <div class="flex bg-green-900/20 border-l-2 border-green-500">
+                                        <div class="w-16 text-right pr-2 text-slate-600 select-none">&nbsp;</div>
+                                        <div class="w-16 text-right pr-2 text-slate-500 select-none">${lineNumber.new}</div>
+                                        <div class="pl-2 text-green-400">+</div>
+                                        <div class="pl-2 flex-1 text-green-300">${this.escapeHtml(content)}</div>
+                                    </div>
+                                `;
+                            } else if (line.startsWith('-')) {
+                                lineNumber.old++;
+                                const content = line.substring(1);
+                                html += `
+                                    <div class="flex bg-red-900/20 border-l-2 border-red-500">
+                                        <div class="w-16 text-right pr-2 text-slate-500 select-none">${lineNumber.old}</div>
+                                        <div class="w-16 text-right pr-2 text-slate-600 select-none">&nbsp;</div>
+                                        <div class="pl-2 text-red-400">-</div>
+                                        <div class="pl-2 flex-1 text-red-300">${this.escapeHtml(content)}</div>
+                                    </div>
+                                `;
+                            } else {
+                                lineNumber.old++;
+                                lineNumber.new++;
+                                html += `
+                                    <div class="flex text-slate-400">
+                                        <div class="w-16 text-right pr-2 text-slate-600 select-none">${lineNumber.old}</div>
+                                        <div class="w-16 text-right pr-2 text-slate-600 select-none">${lineNumber.new}</div>
+                                        <div class="pl-2">&nbsp;</div>
+                                        <div class="pl-2 flex-1">${this.escapeHtml(line)}</div>
+                                    </div>
+                                `;
+                            }
+                        }
+                    });
+                    
+                    html += '</div>';
+                    return html;
                 },
                 
                 renderDiff(diff) {
@@ -424,6 +649,43 @@
                 highlightCode(code, language) {
                     // Simple syntax highlighting - in production, use Prism.js
                     return this.escapeHtml(code);
+                },
+                
+                formatChangeType(type) {
+                    const types = {
+                        'create': 'File Created',
+                        'edit': 'File Edited', 
+                        'write': 'File Written',
+                        'delete': 'File Deleted'
+                    };
+                    return types[type] || type;
+                },
+                
+                getChangeIcon(type) {
+                    const icons = {
+                        'create': '➕',
+                        'edit': '✏️',
+                        'write': '📝',
+                        'delete': '🗑️'
+                    };
+                    return icons[type] || '📄';
+                },
+                
+                getTotalChangedLines() {
+                    const changes = this.getSelectedFileChanges();
+                    let total = 0;
+                    
+                    changes.forEach(change => {
+                        if (change.diff) {
+                            const lines = change.diff.split('\n');
+                            lines.forEach(line => {
+                                if (line.startsWith('+') && !line.startsWith('+++')) total++;
+                                if (line.startsWith('-') && !line.startsWith('---')) total++;
+                            });
+                        }
+                    });
+                    
+                    return total;
                 },
                 
                 async renderInlineFileView() {
@@ -566,7 +828,9 @@
                 
                 revertAllFileChanges() {
                     const changes = this.getSelectedFileChanges();
-                    if (!confirm(`Are you sure you want to revert all ${changes.length} changes to this file?`)) {
+                    const message = `⚠️ Cascading Revert Warning\n\nThis will revert all ${changes.length} changes to this file.\n\nChanges are reverted in reverse chronological order (newest first).\n\nAre you sure you want to continue?`;
+                    
+                    if (!confirm(message)) {
                         return;
                     }
                     
@@ -616,7 +880,11 @@
                     }
                     
                     try {
-                        this.fileViewContent = await this.renderInlineFileView();
+                        if (this.viewMode === 'diff') {
+                            this.fileViewContent = this.renderChangePreview();
+                        } else {
+                            this.fileViewContent = await this.renderInlineFileView();
+                        }
                     } catch (error) {
                         console.error('Error loading file content:', error);
                         this.fileViewContent = '<div class="p-4 text-red-400">Error loading file content</div>';
