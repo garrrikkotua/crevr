@@ -2,6 +2,20 @@
 
 A beautiful web-based UI for reviewing and reverting Claude Code changes. Think of it as "git diff" but for your Claude conversations.
 
+## ⚠️ Alpha Version Disclaimer
+
+**This is an alpha release (v0.0.1) and is quite raw.** Please be aware:
+
+- 🐛 **May contain bugs** - File parsing or revert operations might not work correctly in all cases
+- ⚠️ **Incorrect reverts possible** - Always backup important files before using  
+- 🧪 **Experimental features** - Some functionality may be unstable or incomplete
+- 📝 **Limited testing** - Not all Claude Code scenarios have been tested
+- 💾 **Use with caution** - We recommend testing on non-critical projects first
+
+**Always review changes carefully before reverting and keep backups of important work.**
+
+If you encounter issues, please [report them on GitHub](https://github.com/garrrikkotua/crevr/issues) to help improve the tool.
+
 ## ✨ Features
 
 - **🔍 Visual Diff Viewer** - See exactly what Claude changed with before/after comparisons
