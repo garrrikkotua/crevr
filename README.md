@@ -1,4 +1,4 @@
-# 🔄 Crev
+# 🔄 Crevr
 
 A beautiful web-based UI for reviewing and reverting Claude Code changes. Think of it as "git diff" but for your Claude conversations.
 
@@ -18,7 +18,7 @@ A beautiful web-based UI for reviewing and reverting Claude Code changes. Think 
 ### Install globally via npm:
 
 ```bash
-npm install -g crev
+npm install -g crevr
 ```
 
 ### Use in any directory where Claude Code has been used:
@@ -27,21 +27,21 @@ npm install -g crev
 # Navigate to your project directory
 cd /your/project
 
-# Start Crev (opens in browser automatically)
-crev
+# Start Crevr (opens in browser automatically)
+crevr
 
 # Or specify a custom port
-crev --port 8080
+crevr --port 8080
 
 # Don't auto-open browser
-crev --no-open
+crevr --no-open
 ```
 
-That's it! Crev will scan your Claude Code session and show you all the changes.
+That's it! Crevr will scan your Claude Code session and show you all the changes.
 
 ## 🛠️ How It Works
 
-Crev reads your Claude Code session files (stored in `~/.claude/projects/`) and presents all file changes in an intuitive web interface. It never modifies your original Claude logs - reverted changes are tracked separately in `~/.crev/`.
+Crevr reads your Claude Code session files (stored in `~/.claude/projects/`) and presents all file changes in an intuitive web interface. It never modifies your original Claude logs - reverted changes are tracked separately in `~/.crevr/`.
 
 ### Key Concepts:
 
@@ -66,7 +66,7 @@ Options:
 
 ```bash
 # List recent changes in terminal (no UI)
-crev list
+crevr list
 ```
 
 ## 🎯 Use Cases
@@ -79,7 +79,7 @@ crev list
 
 ## 🤝 Comparison with Similar Tools
 
-| Feature | Crev | ccundo | Claude Code Diff |
+| Feature | Crevr | ccundo | Claude Code Diff |
 |---------|------|---------|------------------|
 | Web UI | ✅ | ❌ | ❌ |
 | Visual diffs | ✅ | ❌ | ✅ |
@@ -90,7 +90,7 @@ crev list
 
 ## 🔒 Privacy & Security
 
-- **Local only** - Crev runs entirely on your machine
+- **Local only** - Crevr runs entirely on your machine
 - **No data collection** - Nothing is sent to external servers
 - **Safe operations** - Original Claude logs are never modified
 - **File access** - Only reads files in your current working directory
@@ -100,11 +100,11 @@ crev list
 ### No changes showing?
 - Make sure you're in a directory where Claude Code has been used
 - Check that `~/.claude/projects/` contains session files
-- Try the `crev list` command to see if changes are detected
+- Try the `crevr list` command to see if changes are detected
 
 ### Browser doesn't open?
-- Use `crev --no-open` and manually visit the URL shown
-- Check if another process is using the port (`crev --port 8080`)
+- Use `crevr --no-open` and manually visit the URL shown
+- Check if another process is using the port (`crevr --port 8080`)
 
 ### Revert not working?
 - Check file permissions in your project directory
@@ -121,7 +121,7 @@ crev list
 
 ## 🤝 Contributing
 
-Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/garrrikkotua/crev/issues).
+Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/garrrikkotua/crevr/issues).
 
 ## 📄 License
 

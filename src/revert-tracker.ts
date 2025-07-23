@@ -6,7 +6,7 @@ export class RevertTracker {
   private revertFile: string;
 
   constructor() {
-    this.revertFile = path.join(os.homedir(), '.crev', 'reverted-changes.json');
+    this.revertFile = path.join(os.homedir(), '.crevr', 'reverted-changes.json');
   }
 
   async init(): Promise<void> {

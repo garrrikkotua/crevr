@@ -8,7 +8,7 @@ import { RevertServer } from './server.js';
 const program = new Command();
 
 program
-  .name('crev')
+  .name('crevr')
   .description('A web-based UI for reviewing and reverting Claude Code changes')
   .version('0.0.1')
   .option('-p, --port <port>', 'port to run the server on', '3456')
@@ -25,7 +25,7 @@ program
         await open(`http://localhost:${port}`);
       }
 
-      console.log(chalk.blue(`✨ Crev UI available at: http://localhost:${port}`));
+      console.log(chalk.blue(`✨ Crevr UI available at: http://localhost:${port}`));
       console.log(chalk.gray('Press Ctrl+C to stop'));
 
       // Handle graceful shutdown

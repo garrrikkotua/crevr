@@ -1,11 +1,11 @@
 {
-  "name": "crev",
+  "name": "crevr",
   "version": "0.0.1",
   "description": "A web-based UI for reviewing and reverting Claude Code changes",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "crev": "./dist/cli.js"
+    "crevr": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -25,13 +25,13 @@
   ],
   "author": "Igor <garrrikkotua@github.com>",
   "license": "MIT",
-  "homepage": "https://github.com/garrrikkotua/crev#readme",
+  "homepage": "https://github.com/garrrikkotua/crevr#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/garrrikkotua/crev.git"
+    "url": "https://github.com/garrrikkotua/crevr.git"
   },
   "bugs": {
-    "url": "https://github.com/garrrikkotua/crev/issues"
+    "url": "https://github.com/garrrikkotua/crevr/issues"
   },
   "dependencies": {
     "commander": "^11.1.0",
